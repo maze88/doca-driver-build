@@ -43,7 +43,7 @@ pipeline {
 
             // Fetch latest Kernel version
             env.LATEST_KERNEL_VERSION = sh(script: """
-              docker run --rm ubuntu:$OS_VERSION bash -c "
+              docker run --rm $OS:$OS_VERSION bash -c "
                 apt-get update > /dev/null
                 apt-cache search --names-only linux-image | grep -Eo 'linux-image-[0-9.-]+$FLAVOR' | sed -E 's/linux-image-//g' | sort -V | tail -n 1
               "
@@ -59,12 +59,14 @@ pipeline {
             env.PRECOMPILED_VERSION_EXISTS = sh(script: """
               skopeo list-tags docker://$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME | jq '.Tags[]' -r | \
                 grep $LATEST_DOCA_VERSION | \
-                grep $FLAVOR-ubuntu$OS_VERSION-$ARCH
+                grep $FLAVOR-$OS$OS_VERSION-$ARCH
             """, returnStatus: true)
 
-            // Determine Docker manifest and tag
-            env.DOCKER_TAG = "$LATEST_DOCA_VERSION-$LATEST_KERNEL_VERSION-ubuntu$OS_VERSION"  // example: 24.07-0.6.1.0-6.8.0-46-generic-ubuntu24.04
-            env.DOCKER_MANIFEST = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG"
+            // Set Docker manifest and build values
+            env.DOCKERFILE       = "${OS.capitalize()}_Dockerfile"
+            env.BUILD_EXTRA_ARGS = "${OS == 'ubuntu' ? '--without-mlnx-nvme-modules' : ''}"
+            env.DOCKER_TAG       = "$LATEST_DOCA_VERSION-$LATEST_KERNEL_VERSION-$OS$OS_VERSION"  // example: 24.07-0.6.1.0-6.8.0-46-generic-ubuntu24.04
+            env.DOCKER_MANIFEST  = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG"
           }
         }
       }
@@ -80,15 +82,15 @@ pipeline {
         container("kaniko") {
           sh("""
             /kaniko/executor \
-              --dockerfile=Ubuntu_Dockerfile \
+              --dockerfile=$DOCKERFILE \
               --custom-platform=$ARCHITECTURE \
-              --build-arg D_OS=ubuntu$OS_VERSION \
-              --build-arg D_BASE_IMAGE=ubuntu:$OS_VERSION \
+              --build-arg D_OS=$OS$OS_VERSION \
+              --build-arg D_BASE_IMAGE=$OS:$OS_VERSION \
               --build-arg D_OFED_VERSION=$LATEST_DOCA_VERSION \
               --build-arg D_KERNEL_VER=$LATEST_KERNEL_VERSION \
-              --build-arg D_BUILD_EXTRA_ARGS=--without-mlnx-nvme-modules \
+              --build-arg D_BUILD_EXTRA_ARGS=$BUILD_EXTRA_ARGS \
               --destination=$DOCKER_MANIFEST-$ARCH \
-              ${PUSH_IMAGES ? "" : "--no-push"}
+              ${PUSH_IMAGE ? "" : "--no-push"}
           """)
         }
       }
@@ -96,7 +98,7 @@ pipeline {
 
     // stage("Docker manifest") {
     //   when {
-    //     expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGES }
+    //     expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGE }
     //   }
     //   steps {
     //     container("dind") {

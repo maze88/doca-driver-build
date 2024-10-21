@@ -27,11 +27,11 @@ pipeline {
           }
           axis {
             name "FLAVOR"
-            values "generic", "aws", "azure", "oracle", "nvidia"
+            values "generic" //, "aws", "azure", "oracle", "nvidia"  // TODO: enable full matrix after development
           }
           axis {
             name "OS_VERSION"
-            values "24.04", "22.04"
+            values "24.04" //, "22.04"  // TODO: enable full matrix after development
           }
         }
 
@@ -39,7 +39,7 @@ pipeline {
           stage("Trigger downstream job") {
             steps {
               // echo("Triggering downstream for '$FLAVOR Ubuntu $OS_VERSION $ARCHITECTURE'...")  // TODO: see if existing jenkins console log is informative enough, or if to add this
-              build(job: "Precompiled DOCA build (downstream)", parameters: [
+              build(job: "Precompiled DOCA build downstream", parameters: [
                 string(name: "LATEST_DOCA_VERSION", value: "$LATEST_DOCA_VERSION"),
                 string(name: "FLAVOR",              value: "$FLAVOR"),
                 string(name: "OS",                  value: "ubuntu"),
