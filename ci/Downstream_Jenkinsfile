@@ -11,115 +11,109 @@ pipeline {
   }
 
   parameters {
-    string(name: "LATEST_DOCA_VERSION", defaultValue: "24.07-0.6.1.0", description: "The version of the DOCA sources to use")
-    string(name: "FLAVOR",              defaultValue: "",              description: "The flavor of Kernel to use (if not for Ubuntu, leave blank)")
-    string(name: "OS",                  defaultValue: "",              description: "The operating system to build for")
-    string(name: "OS_VERSION",          defaultValue: "",              description: "The operating system version to build for")
-    string(name: "ARCHITECTURE",        defaultValue: "",              description: "The architecture to build on/for")
-    booleanParam(name: "PUSH_IMAGES",   defaultValue: false,           description: "For dry-runs, disable pushing images to registry")  // TODO: change `defaultValue` to `true`, after development
+    string(name: "LATEST_DOCA_VERSION", defaultValue: "",   description: "The version of the DOCA sources to use")
+    string(name: "FLAVOR",              defaultValue: "",   description: "The flavor of Kernel to use (if not for Ubuntu, leave blank)")
+    string(name: "OS",                  defaultValue: "",   description: "The operating system to build for")
+    string(name: "OS_VERSION",          defaultValue: "",   description: "The operating system version to build for")
+    string(name: "ARCHITECTURE",        defaultValue: "",   description: "The architecture to build on/for")
+    booleanParam(name: "PUSH_IMAGE",    defaultValue: true, description: "If to push resulting image to registry (disable for dry-run)")
   }
 
   environment {
     NVCR_DOCKER_REGISTRY = "nvcr.io/nvstaging/mellanox"
-    DOCKER_IMAGE_NAME = "doca-driver"
+    DOCKER_IMAGE_NAME    = "doca-driver"
+    LATEST_DOCA_VERSION  = "$params.LATEST_DOCA_VERSION"
+    FLAVOR               = "$params.FLAVOR"
+    OS                   = "$params.OS"
+    OS_VERSION           = "$params.OS_VERSION"
+    ARCHITECTURE         = "$params.ARCHITECTURE"
+    PUSH_IMAGE           = "$params.PUSH_IMAGE"
   }
 
-  // TODO: continue from here
   stages {
+
     stage("Init") {
       steps {
         container("dind") {
-          sh("sudo apk add jq skopeo")
-          sh("until nc -vz localhost 2375; do sleep 3; done")
+          script {
+            // Misc
+            echo("Received parameters for '$FLAVOR $OS$OS_VERSION $ARCHITECTURE'")
+            sh("sudo apk add jq skopeo")
+            sh("until nc -vz localhost 2375; do sleep 3; done")
+
+            // Fetch latest Kernel version
+            env.LATEST_KERNEL_VERSION = sh(script: """
+              docker run --rm ubuntu:$OS_VERSION bash -c "
+                apt-get update > /dev/null
+                apt-cache search --names-only linux-image | grep -Eo 'linux-image-[0-9.-]+$FLAVOR' | sed -E 's/linux-image-//g' | sort -V | tail -n 1
+              "
+            """, returnStdout: true).trim()  // example: 6.8.0-46-generic
+
+            // Docker login
+            withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
+              sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
+            }
+
+            // Check if precompiled DOCA for kernel version already exists
+            ARCH = ARCHITECTURE.tokenize("/")[1]
+            env.PRECOMPILED_VERSION_EXISTS = sh(script: """
+              skopeo list-tags docker://$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME | jq '.Tags[]' -r | \
+                grep $LATEST_DOCA_VERSION | \
+                grep $FLAVOR-ubuntu$OS_VERSION-$ARCH
+            """, returnStatus: true)
+
+            // Determine Docker manifest and tag
+            env.DOCKER_TAG = "$LATEST_DOCA_VERSION-$LATEST_KERNEL_VERSION-ubuntu$OS_VERSION"  // example: 24.07-0.6.1.0-6.8.0-46-generic-ubuntu24.04
+            env.DOCKER_MANIFEST = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG"
+          }
         }
       }
     }
 
-    stage("Precompile build matrices") {
-        // environment {  // TODO: see if required
-        //   OS_VERSION = "$OS_VERSION"  // workaround to access matrix values in `script{}` scope
-        //   FLAVOR = "$FLAVOR"          // workaround to access matrix values in `script{}` scope
-        // }
-        stages {
 
-          stage("Init") {
-            steps {
-              container("dind") {
-                script {
-                  // Fetch latest Kernel version
-                  env.LATEST_KERNEL_VERSION = sh(script: """
-                    docker run --rm ubuntu:$OS_VERSION bash -c "
-                      apt-get update > /dev/null
-                      apt-cache search --names-only linux-image | grep -Eo 'linux-image-[0-9.-]+$FLAVOR' | sed -E 's/linux-image-//g' | sort -V | tail -n 1
-                    "
-                  """, returnStdout: true).trim()  // example: 6.8.0-46-generic
-
-                  // Docker login
-                  withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
-                    sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
-                  }
-
-                  // Check if precompiled DOCA for kernel version already exists
-                  ARCH = ARCHITECTURE.tokenize("/")[1]
-                  env.PRECOMPILED_VERSION_EXISTS = sh(script: """
-                    skopeo list-tags docker://$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME | jq '.Tags[]' -r | \
-                      grep $LATEST_DOCA_VERSION | \
-                      grep $FLAVOR-ubuntu$OS_VERSION-$ARCH
-                  """, returnStatus: true)
-
-                  // Determine Docker manifest and tag
-                  env.DOCKER_TAG = "$params.LATEST_DOCA_VERSION-$LATEST_KERNEL_VERSION-ubuntu$OS_VERSION"  // example: 24.07-0.6.1.0-6.8.0-46-generic-ubuntu24.04
-                  env.DOCKER_MANIFEST = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG"
-                }
-              }
-            }
-          }
-
-          stage("Build and push") {
-            when {
-              expression { env.PRECOMPILED_VERSION_EXISTS != 0 }
-            }
-            steps {
-              container("kaniko") {
-                sh("""
-                  /kaniko/executor \
-                    --dockerfile=Ubuntu_Dockerfile \
-                    --custom-platform=$ARCHITECTURE \
-                    --build-arg D_OS=ubuntu$OS_VERSION \
-                    --build-arg D_BASE_IMAGE=ubuntu:$OS_VERSION \
-                    --build-arg D_OFED_VERSION=$LATEST_DOCA_VERSION \
-                    --build-arg D_KERNEL_VER=$LATEST_KERNEL_VERSION \
-                    --build-arg D_BUILD_EXTRA_ARGS=--without-mlnx-nvme-modules \
-                    --destination=$DOCKER_MANIFEST-$ARCH \
-                    ${params.PUSH_IMAGES ? "" : "--no-push"}
-                """)
-              }
-            }
-          }
-
-          stage("Docker manifest") {
-            when {
-              expression { env.PRECOMPILED_VERSION_EXISTS != 0 && params.PUSH_IMAGES }
-            }
-            steps {
-              container("dind") {
-                sh("""
-                  if docker manifest inspect $DOCKER_MANIFEST > /dev/null;
-                  then
-                    docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCH --os linux --arch $ARCH  # TODO: see if `os` & `arch` annotations are redundant
-                  else
-                    docker manifest create   $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCH
-                    docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCH --os linux --arch $ARCH  # TODO: see if `os` & `arch` annotations are redundant
-                  fi
-                  docker manifest push       $DOCKER_MANIFEST
-                """)
-              }
-            }
-          }
-
+    // TODO: later, duplicate this stage and conditionally run it based on OS
+    stage("Build and push") {
+      when {
+        expression { env.PRECOMPILED_VERSION_EXISTS != 0 }
+      }
+      steps {
+        container("kaniko") {
+          sh("""
+            /kaniko/executor \
+              --dockerfile=Ubuntu_Dockerfile \
+              --custom-platform=$ARCHITECTURE \
+              --build-arg D_OS=ubuntu$OS_VERSION \
+              --build-arg D_BASE_IMAGE=ubuntu:$OS_VERSION \
+              --build-arg D_OFED_VERSION=$LATEST_DOCA_VERSION \
+              --build-arg D_KERNEL_VER=$LATEST_KERNEL_VERSION \
+              --build-arg D_BUILD_EXTRA_ARGS=--without-mlnx-nvme-modules \
+              --destination=$DOCKER_MANIFEST-$ARCH \
+              ${PUSH_IMAGES ? "" : "--no-push"}
+          """)
         }
       }
     }
+
+    // stage("Docker manifest") {
+    //   when {
+    //     expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGES }
+    //   }
+    //   steps {
+    //     container("dind") {
+    //       sh("""
+    //         if docker manifest inspect $DOCKER_MANIFEST > /dev/null;
+    //         then
+    //           docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCH --os linux --arch $ARCH  # TODO: see if `os` & `arch` annotations are redundant
+    //         else
+    //           docker manifest create   $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCH
+    //           docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCH --os linux --arch $ARCH  # TODO: see if `os` & `arch` annotations are redundant
+    //         fi
+    //         docker manifest push       $DOCKER_MANIFEST
+    //       """)
+    //     }
+    //   }
+    // }
+
   }
 }
 

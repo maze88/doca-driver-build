@@ -8,7 +8,7 @@ pipeline {
 
   parameters {
     string(name: "LATEST_DOCA_VERSION", defaultValue: "24.07-0.6.1.0", description: "The version of the DOCA sources to use")
-    booleanParam(name: "PUSH_IMAGES", defaultValue: false, description: "For dry-runs, disable pushing images to registry")  // TODO: change `defaultValue` to `true`, after development
+    booleanParam(name: "PUSH_IMAGES",   defaultValue: false,           description: "For dry-runs, disable pushing images to registry")  // TODO: change `defaultValue` to `true`, after development
   }
 
   environment {
@@ -35,22 +35,17 @@ pipeline {
           }
         }
 
-        // environment {  // TODO: see if this is redundant since no longer using script{} block
-        //   OS_VERSION = "$OS_VERSION"  // workaround to access matrix values in `script{}` scope
-        //   FLAVOR = "$FLAVOR"          // workaround to access matrix values in `script{}` scope
-        // }
-
         stages {
-          stage("Trigger downstream") {
+          stage("Trigger downstream job") {
             steps {
-              echo("Triggering downstream for '$FLAVOR Ubuntu $OS_VERSION $ARCHITECTURE'...")
-              build(job: "Precompiled DOCA build downstream", parameters: [
+              // echo("Triggering downstream for '$FLAVOR Ubuntu $OS_VERSION $ARCHITECTURE'...")  // TODO: see if existing jenkins console log is informative enough, or if to add this
+              build(job: "Precompiled DOCA build (downstream)", parameters: [
                 string(name: "LATEST_DOCA_VERSION", value: "$LATEST_DOCA_VERSION"),
                 string(name: "FLAVOR",              value: "$FLAVOR"),
                 string(name: "OS",                  value: "ubuntu"),
                 string(name: "OS_VERSION",          value: "$OS_VERSION"),
                 string(name: "ARCHITECTURE",        value: "$ARCHITECTURE"),
-                booleanParam(name: "PUSH_IMAGES",   value: false),
+                booleanParam(name: "PUSH_IMAGE",   value: params.PUSH_IMAGES),
               ])
             }
           }
