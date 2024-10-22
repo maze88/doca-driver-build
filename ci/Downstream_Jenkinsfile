@@ -35,12 +35,12 @@ pipeline {
     stage("Init") {
       steps {
         container("dind") {
+          sh("ls -lah")  // TODO: debug `entrypoint.sh` owner
           script {
             // Misc
             echo("Received parameters for '$FLAVOR $OS$OS_VERSION $ARCHITECTURE'")
-            sh("sudo apk add jq skopeo")
+            sh("apk add jq skopeo")
             sh("until nc -vz localhost 2375; do sleep 3; done")
-            sh("sudo chown 0 ./*")  // use global root user, to enable access to sources also from the kaniko container
 
             // Fetch latest Kernel version
             env.LATEST_KERNEL_VERSION = sh(script: """
@@ -84,6 +84,7 @@ pipeline {
       }
       steps {
         container("kaniko") { // TODO: CONTINUE FROM HERE: consider removing `--custom-platform` option
+          sh("ls -lah")  // TODO: debug `entrypoint.sh` owner
           sh("""
             /kaniko/executor \
               --dockerfile=$DOCKERFILE \
