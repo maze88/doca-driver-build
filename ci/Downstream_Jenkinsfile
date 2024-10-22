@@ -79,7 +79,7 @@ pipeline {
         expression { env.PRECOMPILED_VERSION_EXISTS != 0 }
       }
       steps {
-        container("kaniko") {
+        container("kaniko") { // TODO: CONTINUE FROM HERE: consider removing `--custom-platform` option
           sh("""
             /kaniko/executor \
               --dockerfile=$DOCKERFILE \
