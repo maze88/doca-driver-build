@@ -3,7 +3,7 @@ kind: Pod
 spec:
   containers:
   - name: jnlp
-    image: harbor.mellanox.com/toolbox/c3po-jnlp:0.0.29
+    image: jenkins/inbound-agent:latest-jdk21
     resources:
       requests:
         memory: "8Gi"
@@ -11,20 +11,11 @@ spec:
       limits:
         memory: "8Gi"
         cpu: "4"
-    securityContext:
-      # uid=41522(svc-nbu-c3po-bot)
-      runAsUser: 41522
-    volumeMounts:
-    - mountPath: /labhome
-      name: labhome
-      mountPropagation: HostToContainer
-    - mountPath: /auto
-      name: auto
-      mountPropagation: HostToContainer
+    # securityContext:
+    #   runAsUser: 0
 
   - name: kaniko
     image: gcr.io/kaniko-project/executor:debug
-    imagePullPolicy: Always
     resources:
       requests:
         memory: "8Gi"
@@ -36,20 +27,13 @@ spec:
     command:
     - sleep
     args:
-    - 9999999
+    - 1d
     volumeMounts:
-    - mountPath: /labhome
-      name: labhome
-      mountPropagation: HostToContainer
-    - mountPath: /auto
-      name: auto
-      mountPropagation: HostToContainer
     - mountPath: /kaniko/.docker
       name: docker-config
 
   - name: dind
-    image: harbor.mellanox.com/toolbox/devops-tools-build:0.0.13
-    imagePullPolicy: Always
+    image: docker:20.10.13-dind
     resources:
       requests:
         memory: "8Gi"
@@ -58,22 +42,17 @@ spec:
         memory: "8Gi"
         cpu: "4"
     tty: true
-    command: ['cat']
-    securityContext:
-      # uid=41522(svc-nbu-c3po-bot)
-      runAsUser: 41522
+    command:
+    - cat
     volumeMounts:
-    - name: labhome
-      mountPath: /labhome
-      mountPropagation: HostToContainer
-    - mountPath: /labhome/svc-nbu-c3po-bot/.docker  # TODO: try changing to `~/.docker`
+    - mountPath: /root/.docker  # TODO: try changing to `~/.docker`
       name: docker-config
     env:
     - name: DOCKER_HOST
       value: tcp://localhost:2375
 
   - name: docker-daemon
-    image: harbor.mellanox.com/toolbox/devops-tools-build:0.0.13
+    image: docker:20.10.13-dind
     securityContext:
       privileged: true
     env:
@@ -81,15 +60,5 @@ spec:
       value: ""
 
   volumes:
-  - name: labhome
-    hostPath:
-      path: /labhome
-      type: Directory
-      readOnly: false
-  - name: auto
-    hostPath:
-      path: /auto
-      type: Directory
-      readOnly: false
   - name: docker-config
     emptyDir: {}
