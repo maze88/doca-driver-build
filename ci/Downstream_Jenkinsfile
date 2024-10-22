@@ -40,6 +40,7 @@ pipeline {
             echo("Received parameters for '$FLAVOR $OS$OS_VERSION $ARCHITECTURE'")
             sh("sudo apk add jq skopeo")
             sh("until nc -vz localhost 2375; do sleep 3; done")
+            sh("sudo chown 0 ./*")  // use global root user, to enable access to sources also from the kaniko container
 
             // Fetch latest Kernel version
             env.LATEST_KERNEL_VERSION = sh(script: """
@@ -50,6 +51,9 @@ pipeline {
             """, returnStdout: true).trim()  // example: 6.8.0-46-generic
 
             // Docker login
+            withCredentials([usernamePassword(credentialsId: "dockerhub-access-token", usernameVariable: "DOCKERHUB_USERNAME", passwordVariable: "DOCKERHUB_TOKEN")]) {
+              sh('echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin')  // TODO: determine run frequency and if need to prevent error "TOOMANYREQUESTS: You have reached your pull rate limit"
+            }
             withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
               sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
             }
