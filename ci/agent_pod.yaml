@@ -44,6 +44,8 @@ spec:
     - mountPath: /auto
       name: auto
       mountPropagation: HostToContainer
+    - mountPath: /kaniko/.docker
+      name: docker-config
 
   - name: dind
     image: harbor.mellanox.com/toolbox/devops-tools-build:0.0.13
@@ -64,6 +66,8 @@ spec:
     - name: labhome
       mountPath: /labhome
       mountPropagation: HostToContainer
+    - mountPath: /labhome/svc-nbu-c3po-bot/.docker  # TODO: try changing to `~/.docker`
+      name: docker-config
     env:
     - name: DOCKER_HOST
       value: tcp://localhost:2375
@@ -87,3 +91,5 @@ spec:
       path: /auto
       type: Directory
       readOnly: false
+  - name: docker-config
+    emptyDir: {}
