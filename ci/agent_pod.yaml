@@ -24,6 +24,7 @@ spec:
         memory: "8Gi"
         cpu: "4"
     tty: true
+    workingDir: /home/jenkins/agent
     command:
     - sleep
     args:
