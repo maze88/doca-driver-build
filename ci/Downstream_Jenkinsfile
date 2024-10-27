@@ -73,6 +73,10 @@ pipeline {
             env.DOCKER_MANIFEST  = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG"
           }
         }
+        container("dind") {
+          sh("echo 'root:x:0:0:root:/root:/bin/sh' > /etc/passwd")
+          sh("echo 'root:x:0:'                     > /etc/group")
+        }
       }
     }
 
