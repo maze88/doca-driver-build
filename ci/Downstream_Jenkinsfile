@@ -56,6 +56,8 @@ pipeline {
             withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
               sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
             }
+            sh("echo test from amd64 dind > /root/.docker/test.txt")  // debug
+            sh("date +%s                 >> /root/.docker/test.txt")  // debug
 
             // Check if precompiled DOCA for kernel version already exists
             env.ARCH = ARCHITECTURE.tokenize("/")[1]
@@ -86,10 +88,14 @@ pipeline {
         }
       }
       steps {
-        container("kaniko") { // TODO: CONTINUE FROM HERE: consider removing `--custom-platform` option
+        container("dind") {
+          sh("cat /root/.docker/test.txt")  // debug
+        }
+        container("kaniko") {
+          sh("cat /kaniko/.docker/test.txt")  // debug
           sh("""
             /kaniko/executor \
-              --context=${WORKSPACE} \
+              --context=$WORKSPACE \
               --dockerfile=$DOCKERFILE \
               --build-arg D_OS=$OS$OS_VERSION \
               --build-arg D_BASE_IMAGE=$OS:$OS_VERSION \
