@@ -35,7 +35,6 @@ RUN set -x && \
     jq iproute2 udev ethtool
 
 WORKDIR /
-# USER root
 ADD ./entrypoint.sh /root/entrypoint.sh
 
 ENTRYPOINT ["/root/entrypoint.sh"]

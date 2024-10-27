@@ -40,6 +40,7 @@ pipeline {
             // Misc
             echo("Received parameters for '$FLAVOR $OS$OS_VERSION $ARCHITECTURE'")
             sh("apk add jq skopeo")
+            sh("chmod -R 777 ./*")  // TODO: troubleshoot location/permission issue with kaniko build
             sh("until nc -vz localhost 2375; do sleep 3; done")
 
             // Fetch latest Kernel version

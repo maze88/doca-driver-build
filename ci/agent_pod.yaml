@@ -24,7 +24,6 @@ spec:
         memory: "8Gi"
         cpu: "4"
     tty: true
-    workingDir: /home/jenkins/agent
     command:
     - sleep
     args:
@@ -46,7 +45,7 @@ spec:
     command:
     - cat
     volumeMounts:
-    - mountPath: /root/.docker  # TODO: try changing to `~/.docker`
+    - mountPath: /root/.docker
       name: docker-config
     env:
     - name: DOCKER_HOST
