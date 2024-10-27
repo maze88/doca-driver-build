@@ -1,7 +1,7 @@
 pipeline {
   agent {
     kubernetes {
-      yamlFile "ci/agent_pod_amd64.yaml"  // TODO: make agent dynamic (perhaps only in build stage) // TODO: use node selection by label `kubernetes.io/arch=arm64`
+      yamlFile "ci/agent_pod_${params.ARCHITECTURE}.yaml"
     }
   }
 
@@ -51,20 +51,17 @@ pipeline {
 
             // Docker login
             withCredentials([usernamePassword(credentialsId: "dockerhub-access-token", usernameVariable: "DOCKERHUB_USERNAME", passwordVariable: "DOCKERHUB_TOKEN")]) {
-              sh('echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin')  // TODO: determine run frequency and if need to prevent error "TOOMANYREQUESTS: You have reached your pull rate limit"
+              sh('echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin')  // TODO: substitute with a service account
             }
             withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
               sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
             }
-            sh("echo test from amd64 dind > /root/.docker/test.txt")  // debug
-            sh("date +%s                 >> /root/.docker/test.txt")  // debug
 
             // Check if precompiled DOCA for kernel version already exists
-            env.ARCH = ARCHITECTURE.tokenize("/")[1]
             env.PRECOMPILED_VERSION_EXISTS = sh(script: """
               skopeo list-tags docker://$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME | jq '.Tags[]' -r | \
                 grep $LATEST_DOCA_VERSION | \
-                grep $FLAVOR-$OS$OS_VERSION-$ARCH
+                grep $FLAVOR-$OS$OS_VERSION-$ARCHITECTURE
             """, returnStatus: true)
 
             // Set Docker manifest and build values
@@ -82,17 +79,8 @@ pipeline {
       when {
         expression { env.PRECOMPILED_VERSION_EXISTS != 0 }
       }
-      agent {
-        kubernetes {
-          yamlFile "ci/agent_pod_${env.ARCH}.yaml"
-        }
-      }
       steps {
-        container("dind") {
-          sh("cat /root/.docker/test.txt")  // debug
-        }
         container("kaniko") {
-          sh("cat /kaniko/.docker/test.txt")  // debug
           sh("""
             /kaniko/executor \
               --context=$WORKSPACE \
@@ -102,7 +90,7 @@ pipeline {
               --build-arg D_KERNEL_VER=$LATEST_KERNEL_VERSION \
               --build-arg D_OFED_VERSION=$LATEST_DOCA_VERSION \
               --build-arg D_BUILD_EXTRA_ARGS=$BUILD_EXTRA_ARGS \
-              --destination=$DOCKER_MANIFEST-$ARCH \
+              --destination=$DOCKER_MANIFEST-$ARCHITECTURE \
               ${PUSH_IMAGE == "true" ? "" : "--no-push"}
           """)
         }
@@ -118,10 +106,10 @@ pipeline {
     //       sh("""
     //         if docker manifest inspect $DOCKER_MANIFEST > /dev/null;
     //         then
-    //           docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCH --os linux --arch $ARCH  # TODO: see if `os` & `arch` annotations are redundant
+    //           docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE --os linux --arch linux/$ARCHITECTURE  # TODO: see if `os` & `arch` annotations are redundant
     //         else
-    //           docker manifest create   $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCH
-    //           docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCH --os linux --arch $ARCH  # TODO: see if `os` & `arch` annotations are redundant
+    //           docker manifest create   $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE
+    //           docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE --os linux --arch $ARCHITECTURE  # TODO: see if `os` & `arch` annotations are redundant
     //         fi
     //         docker manifest push       $DOCKER_MANIFEST
     //       """)
