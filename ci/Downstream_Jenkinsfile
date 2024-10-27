@@ -1,7 +1,7 @@
 pipeline {
   agent {
     kubernetes {
-      yamlFile "ci/agent_pod.yaml"  // TODO: make agent dynamic (perhaps only in build stage) // TODO: use node selection by label `kubernetes.io/arch=arm64`
+      yamlFile "ci/agent_pod_amd64.yaml"  // TODO: make agent dynamic (perhaps only in build stage) // TODO: use node selection by label `kubernetes.io/arch=arm64`
     }
   }
 
@@ -82,11 +82,7 @@ pipeline {
       }
       agent {
         kubernetes {
-          inheritFrom "main"
-          yaml """
-            nodeSelector:
-              kubernetes.io/arch: ${env.ARCH}
-          """
+          yamlFile "ci/agent_pod_${env.ARCH}.yaml"
         }
       }
       steps {
