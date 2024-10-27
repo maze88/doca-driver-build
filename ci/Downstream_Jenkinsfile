@@ -35,12 +35,12 @@ pipeline {
     stage("Init") {
       steps {
         container("dind") {
-          sh("ls -lah")  // TODO: debug `entrypoint.sh` owner
+          sh("pwd")  // TODO: debug
+          sh("ls -lah")  // TODO: debug
           script {
             // Misc
             echo("Received parameters for '$FLAVOR $OS$OS_VERSION $ARCHITECTURE'")
             sh("apk add jq skopeo")
-            sh("chmod -R 777 ./*")  // TODO: troubleshoot location/permission issue with kaniko build
             sh("until nc -vz localhost 2375; do sleep 3; done")
 
             // Fetch latest Kernel version
@@ -74,10 +74,10 @@ pipeline {
             env.DOCKER_MANIFEST  = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG"
           }
         }
-        container("dind") {
-          sh("echo 'root:x:0:0:root:/root:/bin/sh' > /etc/passwd")
-          sh("echo 'root:x:0:'                     > /etc/group")
-        }
+        // container("dind") {  // TODO: consider a more conventional (and working!) solution
+        //   sh("echo 'root:x:0:0:root:/root:/bin/sh' > /etc/passwd")
+        //   sh("echo 'root:x:0:'                     > /etc/group")
+        // }
       }
     }
 
@@ -89,10 +89,11 @@ pipeline {
       }
       steps {
         container("kaniko") { // TODO: CONTINUE FROM HERE: consider removing `--custom-platform` option
-          sh("ls -lah")  // TODO: debug `entrypoint.sh` owner
+          sh("pwd")  // TODO: debug
+          sh("ls -lah")  // TODO: debug
           sh("""
             /kaniko/executor \
-              --dockerfile=$DOCKERFILE \
+              --dockerfile=$DOCKERFILE-mztest \
               --custom-platform=$ARCHITECTURE \
               --build-arg D_OS=$OS$OS_VERSION \
               --build-arg D_BASE_IMAGE=$OS:$OS_VERSION \
@@ -101,7 +102,7 @@ pipeline {
               --build-arg D_BUILD_EXTRA_ARGS=$BUILD_EXTRA_ARGS \
               --destination=$DOCKER_MANIFEST-$ARCH \
               ${PUSH_IMAGE ? "" : "--no-push"}
-          """)
+          """)  // TODO: revert dockerfile after troubleshooting
         }
       }
     }
