@@ -58,7 +58,7 @@ pipeline {
             }
 
             // Check if precompiled DOCA for kernel version already exists
-            ARCH = ARCHITECTURE.tokenize("/")[1]
+            env.ARCH = ARCHITECTURE.tokenize("/")[1]
             env.PRECOMPILED_VERSION_EXISTS = sh(script: """
               skopeo list-tags docker://$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME | jq '.Tags[]' -r | \
                 grep $LATEST_DOCA_VERSION | \
@@ -80,11 +80,19 @@ pipeline {
       when {
         expression { env.PRECOMPILED_VERSION_EXISTS != 0 }
       }
+      agent {
+        kubernetes {
+          inheritFrom "main"
+          yaml """
+            nodeSelector:
+              kubernetes.io/arch: ${env.ARCH}
+          """
+        }
+      }
       steps {
         container("kaniko") { // TODO: CONTINUE FROM HERE: consider removing `--custom-platform` option
           sh("""
             /kaniko/executor \
-              --custom-platform=$ARCHITECTURE \
               --context=${WORKSPACE} \
               --dockerfile=$DOCKERFILE \
               --build-arg D_OS=$OS$OS_VERSION \
