@@ -38,7 +38,6 @@ pipeline {
         stages {
           stage("Trigger downstream job") {
             steps {
-              // echo("Triggering downstream for '$FLAVOR Ubuntu $OS_VERSION $ARCHITECTURE'...")  // TODO: see if existing jenkins console log is informative enough, or if to add this
               build(job: "precompiled-DOCA-build-downstream", parameters: [
                 string(name: "LATEST_DOCA_VERSION", value: "$LATEST_DOCA_VERSION"),
                 string(name: "FLAVOR",              value: "$FLAVOR"),

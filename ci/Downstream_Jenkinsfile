@@ -75,7 +75,6 @@ pipeline {
       }
     }
 
-
     // TODO: later, duplicate this stage and conditionally run it based on OS
     stage("Build and push") {
       when {
@@ -94,7 +93,7 @@ pipeline {
               --build-arg D_OFED_VERSION=$LATEST_DOCA_VERSION \
               --build-arg D_BUILD_EXTRA_ARGS=$BUILD_EXTRA_ARGS \
               --destination=$DOCKER_MANIFEST-$ARCH \
-              ${PUSH_IMAGE ? "" : "--no-push"}
+              ${PUSH_IMAGE == "true" ? "" : "--no-push"}
           """)
         }
       }
