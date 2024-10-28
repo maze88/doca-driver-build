@@ -3,12 +3,12 @@ name: Build precompiled DOCA for latest Kernels
 # TODO: decide on and implement a retention policy for nvstaging
 # TODO: determine a publishing/promotion strategy for deployments (NGC)
 # TODO: ask alex petrovsky about retention in NGC
-on:
-  schedule:
-  - cron: 0 9 * * mon-fri
-  push:
-    branches:  # TODO: remove after testing
-    - feature/precompiled-ofed-per-kernel
+# on:
+#   schedule:
+#   - cron: 0 9 * * mon-fri
+#   push:
+#     branches:  # TODO: remove after testing
+#     - feature/precompiled-ofed-per-kernel
 
 env:
   NVCR_DOCKER_REGISTRY: nvcr.io/nvstaging/mellanox

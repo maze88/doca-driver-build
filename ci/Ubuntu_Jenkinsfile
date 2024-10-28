@@ -1,3 +1,6 @@
+// TODO: decide on and implement a retention policy for nvstaging
+// TODO: determine a publishing/promotion strategy for deployments (NGC)
+// TODO: ask alex petrovsky about retention in NGC
 pipeline {
   agent any
 
@@ -44,7 +47,7 @@ pipeline {
                 string(name: "OS",                  value: "ubuntu"),
                 string(name: "OS_VERSION",          value: "$OS_VERSION"),
                 string(name: "ARCHITECTURE",        value: "$ARCHITECTURE"),
-                booleanParam(name: "PUSH_IMAGE",   value: params.PUSH_IMAGES),
+                booleanParam(name: "PUSH_IMAGE",    value: params.PUSH_IMAGES),
               ])
             }
           }
