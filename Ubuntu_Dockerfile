@@ -115,12 +115,6 @@ RUN set -x && \
     apt-get clean autoclean && \
     rm -rf /var/lib/apt/lists/*
 
-# TODO: remove after debugging
-RUN echo DEBUG mz1
-RUN ls -l  ${OFED_SRC_LOCAL_DIR}/DEBS/${D_OS}    || true
-RUN echo DEBUG mz2
-RUN ls -l  ${OFED_SRC_LOCAL_DIR}/DEBS/${D_OS}/*/ || true
-
 # Install driver
 COPY --from=driver-builder ${OFED_SRC_LOCAL_DIR}/DEBS/${D_OS}/*/*.deb /root/
 
