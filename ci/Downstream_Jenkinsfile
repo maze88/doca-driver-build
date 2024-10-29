@@ -74,7 +74,6 @@ pipeline {
       }
     }
 
-    // TODO: later, duplicate this stage and conditionally run it based on OS
     stage("Build and push") {
       when {
         expression { env.PRECOMPILED_VERSION_EXISTS != 0 }
@@ -92,30 +91,27 @@ pipeline {
               --build-arg D_BUILD_EXTRA_ARGS=$BUILD_EXTRA_ARGS \
               --destination=$DOCKER_MANIFEST-$ARCHITECTURE \
               ${PUSH_IMAGE == "true" ? "" : "--no-push"}
-          """)
+          """)  // TODO: later, adjust `--destination` based on existence of $ARCHITECTURE value (for forward compatibility)
         }
       }
     }
 
-    // stage("Docker manifest") {
-    //   when {
-    //     expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGE }
-    //   }
-    //   steps {
-    //     container("dind") {
-    //       sh("""
-    //         if docker manifest inspect $DOCKER_MANIFEST > /dev/null;
-    //         then
-    //           docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE --os linux --arch linux/$ARCHITECTURE  # TODO: see if `os` & `arch` annotations are redundant
-    //         else
-    //           docker manifest create   $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE
-    //           docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE --os linux --arch $ARCHITECTURE  # TODO: see if `os` & `arch` annotations are redundant
-    //         fi
-    //         docker manifest push       $DOCKER_MANIFEST
-    //       """)
-    //     }
-    //   }
-    // }
+    stage("Docker manifest") {
+      when {
+        expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGE == "true" }
+      }
+      steps {
+        container("dind") {
+          sh("""
+            if ! docker manifest inspect $DOCKER_MANIFEST > /dev/null; then
+              docker manifest create $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE
+            fi
+            docker manifest annotate $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE --os linux --arch $ARCHITECTURE  # TODO: see if `os` & `arch` annotations are redundant
+            docker manifest push     $DOCKER_MANIFEST
+          """)
+        }
+      }
+    }
 
   }
 }

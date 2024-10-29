@@ -9,9 +9,10 @@ pipeline {
     ansiColor("xterm")
   }
 
+  // TODO: talat said in january upstream job will change (check with him towards then)
   parameters {
     string(name: "LATEST_DOCA_VERSION", defaultValue: "24.07-0.6.1.0", description: "The version of the DOCA sources to use")
-    booleanParam(name: "PUSH_IMAGES",   defaultValue: false,           description: "For dry-runs, disable pushing images to registry")  // TODO: change `defaultValue` to `true`, after development
+    booleanParam(name: "PUSH_IMAGES",   defaultValue: true,            description: "For dry-runs, disable pushing images to registry")
   }
 
   environment {
@@ -30,25 +31,29 @@ pipeline {
           }
           axis {
             name "FLAVOR"
-            values "generic" //, "aws", "azure", "oracle", "nvidia"  // TODO: enable full matrix after development
+            values "generic", "aws", "azure", "oracle", "nvidia"
           }
           axis {
             name "OS_VERSION"
-            values "24.04" //, "22.04"  // TODO: enable full matrix after development
+            values "24.04", "22.04"
           }
         }
 
         stages {
           stage("Trigger downstream job") {
             steps {
-              build(job: "precompiled-DOCA-build-downstream", parameters: [
-                string(name: "LATEST_DOCA_VERSION", value: "$LATEST_DOCA_VERSION"),
-                string(name: "FLAVOR",              value: "$FLAVOR"),
-                string(name: "OS",                  value: "ubuntu"),
-                string(name: "OS_VERSION",          value: "$OS_VERSION"),
-                string(name: "ARCHITECTURE",        value: "$ARCHITECTURE"),
-                booleanParam(name: "PUSH_IMAGE",    value: params.PUSH_IMAGES),
-              ])
+              build(
+                job: "precompiled-DOCA-build-downstream",
+                parameters: [
+                  string(name: "LATEST_DOCA_VERSION", value: "$LATEST_DOCA_VERSION"),
+                  string(name: "FLAVOR",              value: "$FLAVOR"),
+                  string(name: "OS",                  value: "ubuntu"),
+                  string(name: "OS_VERSION",          value: "$OS_VERSION"),
+                  string(name: "ARCHITECTURE",        value: "$ARCHITECTURE"),
+                  booleanParam(name: "PUSH_IMAGE",    value: params.PUSH_IMAGES),
+                ],
+                wait: true,
+              )
             }
           }
         }
