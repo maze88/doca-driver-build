@@ -65,10 +65,11 @@ pipeline {
             """, returnStatus: true)
 
             // Set Docker manifest and build values
-            env.DOCKERFILE       = "${OS.capitalize()}_Dockerfile"
-            env.BUILD_EXTRA_ARGS = "${OS == 'ubuntu' ? '--without-mlnx-nvme-modules' : ''}"
-            env.DOCKER_TAG       = "$LATEST_DOCA_VERSION-$LATEST_KERNEL_VERSION-$OS$OS_VERSION"  // example: 24.07-0.6.1.0-6.8.0-46-generic-ubuntu24.04
-            env.DOCKER_MANIFEST  = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG-mztest"  // TODO: remove '-mztest' suffix after development
+            env.DOCKERFILE             = "${OS.capitalize()}_Dockerfile"
+            env.BUILD_EXTRA_ARGS       = "${OS == 'ubuntu' ? '--without-mlnx-nvme-modules' : ''}"
+            env.DOCKER_TAG             = "$LATEST_DOCA_VERSION-$LATEST_KERNEL_VERSION-$OS$OS_VERSION"  // example: 24.07-0.6.1.0-6.8.0-46-generic-ubuntu24.04
+            env.DOCKER_MANIFEST_NAME   = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG-mztest"  // TODO: remove '-mztest' suffix after development
+            env.DOCKER_FULL_IMAGE_NAME = "$DOCKER_MANIFEST_NAME${ARCHITECTURE == '' ? '' : '-'}$ARCHITECTURE"
           }
         }
       }
@@ -89,32 +90,30 @@ pipeline {
               --build-arg D_KERNEL_VER=$LATEST_KERNEL_VERSION \
               --build-arg D_OFED_VERSION=$LATEST_DOCA_VERSION \
               --build-arg D_BUILD_EXTRA_ARGS=$BUILD_EXTRA_ARGS \
-              --destination=$DOCKER_MANIFEST-$ARCHITECTURE \
+              --destination=$DOCKER_FULL_IMAGE_NAME \
               ${PUSH_IMAGE == "true" ? "" : "--no-push"}
-          """)  // TODO: make destination dynamic in case of no architecture  // TODO: remove '-mztest' suffix from dockerfile after development
+          """)  // TODO: remove '-mztest' suffix from dockerfile after development
         }
       }
     }
 
-    // TODO: add logic to only create manifest if $ARCHITECTURE no empty
     stage("Docker manifest") {
       when {
-        expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGE == "true" }
+        expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGE == "true" && env.ARCHITECTURE != "" }
       }
       steps {
         container("dind") {
           sh("""
-            if docker manifest inspect $DOCKER_MANIFEST > /dev/null; then
-              docker manifest create --amend $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE  # TODO: try and use only this line, and see if it behaves idempotently
+            if docker manifest inspect $DOCKER_MANIFEST_NAME > /dev/null; then
+              docker manifest create $DOCKER_MANIFEST_NAME $DOCKER_MANIFEST_NAME-amd64 $DOCKER_MANIFEST_NAME-arm64
             else
-              docker manifest create         $DOCKER_MANIFEST $DOCKER_MANIFEST-$ARCHITECTURE
+              docker manifest create $DOCKER_MANIFEST_NAME $DOCKER_FULL_IMAGE_NAME
             fi
-            docker manifest push $DOCKER_MANIFEST
-          """)  // TODO: test manifest modification command
+            docker manifest push $DOCKER_MANIFEST_NAME
+          """)
         }
       }
     }
 
   }
 }
-
