@@ -84,7 +84,7 @@ pipeline {
           sh("""
             /kaniko/executor \
               --context=$WORKSPACE \
-              --dockerfile=$DOCKERFILE-mztest \
+              --dockerfile=$DOCKERFILE \
               --build-arg D_OS=$OS$OS_VERSION \
               --build-arg D_BASE_IMAGE=$OS:$OS_VERSION \
               --build-arg D_KERNEL_VER=$LATEST_KERNEL_VERSION \
@@ -92,7 +92,7 @@ pipeline {
               --build-arg D_BUILD_EXTRA_ARGS=$BUILD_EXTRA_ARGS \
               --destination=$DOCKER_FULL_IMAGE_NAME \
               ${PUSH_IMAGE == "true" ? "" : "--no-push"}
-          """)  // TODO: remove '-mztest' suffix from dockerfile after development
+          """)
         }
       }
     }
