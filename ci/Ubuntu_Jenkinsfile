@@ -31,7 +31,7 @@ pipeline {
           }
           axis {
             name "FLAVOR"
-            values "generic", "aws", "azure", "oracle", "nvidia"  // TODO: restore matrix after testing
+            values "generic" , "aws", "azure", "oracle", "nvidia"  // TODO: restore matrix after testing
           }
           axis {
             name "OS_VERSION"
