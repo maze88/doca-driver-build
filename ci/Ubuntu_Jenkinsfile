@@ -39,11 +39,11 @@ pipeline {
           }
           axis {
             name "FLAVOR"
-            values "generic", "aws", "azure", "oracle", "nvidia"  // TODO: restore matrix after testing
+            values "generic", "aws"//, "azure", "oracle", "nvidia"  // TODO: restore matrix after testing
           }
           axis {
             name "OS_VERSION"
-            values "24.04", "22.04"  // TODO: restore matrix after testing
+            values "24.04"//, "22.04"  // TODO: restore matrix after testing
           }
         }
 
@@ -63,9 +63,15 @@ pipeline {
                   ],
                   wait: true,
                 )
-                dockerManifestName  = buildResult.buildVariables.DOCKER_MANIFEST_NAME
-                dockerFullImageName = buildResult.buildVariables.DOCKER_FULL_IMAGE_NAME
-                manifestsToCreate.computeIfAbsent(dockerManifestName, { [] }) << dockerFullImageName
+                manifestName  = buildResult.buildVariables.DOCKER_MANIFEST_NAME
+                fullImageName = buildResult.buildVariables.DOCKER_FULL_IMAGE_NAME
+                // manifestsToCreate.computeIfAbsent(manifestName, { [] }) << fullImageName
+                if (manifestsToCreate[manifestName]) {
+                  manifestsToCreate[manifestName] += fullImageName
+                } else {
+                  manifestsToCreate[manifestName] = fullImageName
+                }
+                manifestsToCreatePseudoMap = manifestsToCreate.collect { key, value -> "${key}=${value.join(' ')}" }.join(';')  // map converted because jenkins can only pass strings between stages
               }
             }
           }
@@ -76,14 +82,15 @@ pipeline {
 
     stage("Create manifests") {
       when {
-        expression { manifestsToCreate.isEmpty() == false && PUSH_IMAGE == "true" }
+        expression { manifestsToCreate && PUSH_IMAGES == "true" }
       }
       steps {
         container("dind") {
           script {
-            manifestsToCreate.each { manifestName, imageNames ->
-              sh("docker manifest create ${manifestName} ${imageNames.join(' ')}")
-              sh("docker manifest push   ${manifestName}")
+            manifestsToCreatePseudoMap.tokenize(";").each { manifest ->
+              (manifestName, fullImageNames) = manifest.tokenize("=")
+              sh("docker manifest create $manifestName $fullImageNames")
+              sh("docker manifest push   $manifestName")
             }
           }
         }
