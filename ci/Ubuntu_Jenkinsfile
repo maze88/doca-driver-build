@@ -21,6 +21,14 @@ pipeline {
   }
 
   stages {
+    stage("Init") {
+      steps {
+        script {
+          manifestsToCreate = [:]
+        }
+      }
+    }
+
     stage("Precompile Matrix") {
       matrix {
 
@@ -31,7 +39,7 @@ pipeline {
           }
           axis {
             name "FLAVOR"
-            values "generic" , "aws", "azure", "oracle", "nvidia"  // TODO: restore matrix after testing
+            values "generic", "aws", "azure", "oracle", "nvidia"  // TODO: restore matrix after testing
           }
           axis {
             name "OS_VERSION"
@@ -42,22 +50,43 @@ pipeline {
         stages {
           stage("Trigger downstream job") {
             steps {
-              build(
-                job: "precompiled-DOCA-build-downstream",
-                parameters: [
-                  string(name: "LATEST_DOCA_VERSION", value: "$LATEST_DOCA_VERSION"),
-                  string(name: "FLAVOR",              value: "$FLAVOR"),
-                  string(name: "OS",                  value: "ubuntu"),
-                  string(name: "OS_VERSION",          value: "$OS_VERSION"),
-                  string(name: "ARCHITECTURE",        value: "$ARCHITECTURE"),
-                  booleanParam(name: "PUSH_IMAGE",    value: params.PUSH_IMAGES),
-                ],
-                wait: true,
-              )
+              script {
+                buildResult = build(
+                  job: "precompiled-DOCA-build-downstream",
+                  parameters: [
+                    string(name: "LATEST_DOCA_VERSION", value: "$LATEST_DOCA_VERSION"),
+                    string(name: "FLAVOR",              value: "$FLAVOR"),
+                    string(name: "OS",                  value: "ubuntu"),
+                    string(name: "OS_VERSION",          value: "$OS_VERSION"),
+                    string(name: "ARCHITECTURE",        value: "$ARCHITECTURE"),
+                    booleanParam(name: "PUSH_IMAGE",    value: params.PUSH_IMAGES),
+                  ],
+                  wait: true,
+                )
+                dockerManifestName  = buildResult.buildVariables.DOCKER_MANIFEST_NAME
+                dockerFullImageName = buildResult.buildVariables.DOCKER_FULL_IMAGE_NAME
+                manifestsToCreate.computeIfAbsent(dockerManifestName, { [] }) << dockerFullImageName
+              }
             }
           }
         }
 
+      }
+    }
+
+    stage("Create manifests") {
+      when {
+        expression { manifestsToCreate.isEmpty() == false && PUSH_IMAGE == "true" }
+      }
+      steps {
+        container("dind") {
+          script {
+            manifestsToCreate.each { manifestName, imageNames ->
+              sh("docker manifest create ${manifestName} ${imageNames.join(' ')}")
+              sh("docker manifest push   ${manifestName}")
+            }
+          }
+        }
       }
     }
   }

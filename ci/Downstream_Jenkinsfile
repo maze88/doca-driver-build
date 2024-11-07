@@ -97,23 +97,23 @@ pipeline {
       }
     }
 
-    stage("Docker manifest") {
-      when {
-        expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGE == "true" && env.ARCHITECTURE != "" }
-      }
-      steps {
-        container("dind") {
-          sh("""
-            if docker manifest inspect $DOCKER_MANIFEST_NAME > /dev/null; then
-              docker manifest create $DOCKER_MANIFEST_NAME $DOCKER_MANIFEST_NAME-amd64 $DOCKER_MANIFEST_NAME-arm64
-            else
-              docker manifest create $DOCKER_MANIFEST_NAME $DOCKER_FULL_IMAGE_NAME
-            fi
-            docker manifest push $DOCKER_MANIFEST_NAME
-          """)
-        }
-      }
-    }
+    // stage("Docker manifest") {
+    //   when {
+    //     expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGE == "true" && env.ARCHITECTURE != "" }
+    //   }
+    //   steps {
+    //     container("dind") {
+    //       sh("""
+    //         if docker manifest inspect $DOCKER_MANIFEST_NAME > /dev/null; then
+    //           docker manifest create $DOCKER_MANIFEST_NAME $DOCKER_MANIFEST_NAME-amd64 $DOCKER_MANIFEST_NAME-arm64
+    //         else
+    //           docker manifest create $DOCKER_MANIFEST_NAME $DOCKER_FULL_IMAGE_NAME
+    //         fi
+    //         docker manifest push $DOCKER_MANIFEST_NAME
+    //       """)
+    //     }
+    //   }
+    // }
 
   }
 }
