@@ -85,7 +85,7 @@ pipeline {
         expression { manifestsToCreate && PUSH_IMAGES == "true" }
       }
       steps {
-        container("dind") {
+        // container("dind") {
           script {
             manifestsToCreatePseudoMap.tokenize(";").each { manifest ->
               (manifestName, fullImageNames) = manifest.tokenize("=")
@@ -93,7 +93,7 @@ pipeline {
               sh("docker manifest push   $manifestName")
             }
           }
-        }
+        // }
       }
     }
   }
