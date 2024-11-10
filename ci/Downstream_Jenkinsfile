@@ -41,7 +41,7 @@ pipeline {
             sh("apk add jq skopeo")
             sh("until nc -vz localhost 2375; do sleep 3; done")
 
-            // Fetch latest Kernel version
+            // Fetch latest Kernel version for OS/flavor
             env.LATEST_KERNEL_VERSION = sh(script: """
               docker run --rm $OS:$OS_VERSION bash -c "
                 apt-get update > /dev/null
@@ -49,7 +49,7 @@ pipeline {
               "
             """, returnStdout: true).trim()  // example: 6.8.0-46-generic
 
-            // Docker login
+            // Docker logins
             withCredentials([usernamePassword(credentialsId: "dockerhub-access-token", usernameVariable: "DOCKERHUB_USERNAME", passwordVariable: "DOCKERHUB_TOKEN")]) {
               sh('echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin')  // TODO: substitute with a service account
             }
@@ -84,7 +84,7 @@ pipeline {
           sh("""
             /kaniko/executor \
               --context=$WORKSPACE \
-              --dockerfile=$DOCKERFILE \
+              --dockerfile=$DOCKERFILE-mztest \
               --build-arg D_OS=$OS$OS_VERSION \
               --build-arg D_BASE_IMAGE=$OS:$OS_VERSION \
               --build-arg D_KERNEL_VER=$LATEST_KERNEL_VERSION \
@@ -92,28 +92,10 @@ pipeline {
               --build-arg D_BUILD_EXTRA_ARGS=$BUILD_EXTRA_ARGS \
               --destination=$DOCKER_FULL_IMAGE_NAME \
               ${PUSH_IMAGE == "true" ? "" : "--no-push"}
-          """)
+          """)  // TODO: remove '-mztest' suffix after development
         }
       }
     }
-
-    // stage("Docker manifest") {
-    //   when {
-    //     expression { env.PRECOMPILED_VERSION_EXISTS != 0 && PUSH_IMAGE == "true" && env.ARCHITECTURE != "" }
-    //   }
-    //   steps {
-    //     container("dind") {
-    //       sh("""
-    //         if docker manifest inspect $DOCKER_MANIFEST_NAME > /dev/null; then
-    //           docker manifest create $DOCKER_MANIFEST_NAME $DOCKER_MANIFEST_NAME-amd64 $DOCKER_MANIFEST_NAME-arm64
-    //         else
-    //           docker manifest create $DOCKER_MANIFEST_NAME $DOCKER_FULL_IMAGE_NAME
-    //         fi
-    //         docker manifest push $DOCKER_MANIFEST_NAME
-    //       """)
-    //     }
-    //   }
-    // }
 
   }
 }
