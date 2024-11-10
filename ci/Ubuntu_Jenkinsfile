@@ -92,6 +92,7 @@ pipeline {
           withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
             sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
           }
+          // sleep(5)// TODO: try adding a sleep step here, in case of a server-side delay
           script {
             echo(manifestsToCreatePseudoMap)  // debug
             manifestsToCreatePseudoMap.tokenize(";").each { manifest ->
