@@ -89,10 +89,10 @@ pipeline {
       }
       steps {
         container("dind") {
-          withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
-            sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
-          }
           script {
+            withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
+              sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
+            }
             manifestsToCreatePseudoMap.tokenize(";").each { manifest ->
               (manifestName, fullImageNames) = manifest.tokenize("=")
               sh("docker manifest create $manifestName $fullImageNames")
