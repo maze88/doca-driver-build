@@ -2,7 +2,11 @@
 // TODO: determine a publishing/promotion strategy for deployments (NGC)
 // TODO: ask alex petrovsky about retention in NGC
 pipeline {
-  agent any
+  agent {
+    kubernetes {
+      yamlFile "ci/agent_pod_upstream.yaml"
+    }
+  }
 
   options {
     timestamps()
@@ -65,7 +69,6 @@ pipeline {
                 )
                 manifestName  = buildResult.buildVariables.DOCKER_MANIFEST_NAME
                 fullImageName = buildResult.buildVariables.DOCKER_FULL_IMAGE_NAME
-                // manifestsToCreate.computeIfAbsent(manifestName, { [] }) << fullImageName
                 if (manifestsToCreate[manifestName]) {
                   manifestsToCreate[manifestName] += fullImageName
                 } else {
@@ -85,7 +88,10 @@ pipeline {
         expression { manifestsToCreate && PUSH_IMAGES == "true" }
       }
       steps {
-        // container("dind") {
+        container("dind") {
+          withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
+            sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
+          }
           script {
             manifestsToCreatePseudoMap.tokenize(";").each { manifest ->
               (manifestName, fullImageNames) = manifest.tokenize("=")
@@ -93,7 +99,7 @@ pipeline {
               sh("docker manifest push   $manifestName")
             }
           }
-        // }
+        }
       }
     }
   }
