@@ -68,7 +68,7 @@ pipeline {
             env.DOCKERFILE             = "${OS.capitalize()}_Dockerfile"
             env.BUILD_EXTRA_ARGS       = "${OS == 'ubuntu' ? '--without-mlnx-nvme-modules' : ''}"
             env.DOCKER_TAG             = "$LATEST_DOCA_VERSION-$LATEST_KERNEL_VERSION-$OS$OS_VERSION"  // example: 24.07-0.6.1.0-6.8.0-46-generic-ubuntu24.04
-            env.DOCKER_MANIFEST_NAME   = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG-mztest2"  // TODO: remove '-mztest' suffix after development
+            env.DOCKER_MANIFEST_NAME   = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG-mztest3"  // TODO: remove '-mztest' suffix after development
             env.DOCKER_FULL_IMAGE_NAME = "$DOCKER_MANIFEST_NAME${ARCHITECTURE == '' ? '' : '-'}$ARCHITECTURE"
           }
         }
