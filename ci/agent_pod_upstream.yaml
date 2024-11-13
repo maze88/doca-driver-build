@@ -10,11 +10,11 @@ spec:
     image: jenkins/inbound-agent:latest-jdk21
     resources:
       requests:
-        memory: "8Gi"
-        cpu: "4"
+        memory: "4Gi"
+        cpu: "2"
       limits:
-        memory: "8Gi"
-        cpu: "4"
+        memory: "4Gi"
+        cpu: "2"
     securityContext:
       runAsUser: 0
 
@@ -36,6 +36,13 @@ spec:
 
   - name: docker-daemon
     image: docker:20.10.13-dind
+    resources:
+      requests:
+        memory: "4Gi"
+        cpu: "2"
+      limits:
+        memory: "4Gi"
+        cpu: "2"
     securityContext:
       privileged: true
     env:
