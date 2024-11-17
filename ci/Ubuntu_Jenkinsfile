@@ -10,9 +10,9 @@ pipeline {
     ansiColor("xterm")
   }
 
-  // TODO: talat said in january upstream job will change (check with him towards then)
+  // TODO: talat said in january upstream job will change (check with him or daniel levi towards then)
   parameters {
-    string(name: "LATEST_DOCA_VERSION", defaultValue: "24.07-0.6.1.0", description: "The version of the DOCA sources to use")
+    string(name: "LATEST_DOCA_VERSION", defaultValue: "24.07-0.6.1.0", description: "The version of the DOCA sources to use")  // TODO: remove default value after development
     booleanParam(name: "PUSH_IMAGES",   defaultValue: true,            description: "For dry-runs, disable pushing images to registry")
   }
 
@@ -103,4 +103,3 @@ pipeline {
     }
   }
 }
-

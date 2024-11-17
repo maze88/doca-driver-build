@@ -41,6 +41,15 @@ pipeline {
             sh("apk add jq skopeo")
             sh("until nc -vz localhost 2375; do sleep 3; done")
 
+            // Docker logins
+            configFileProvider([configFile(fileId: "docker-daemon-configuration", variable: "DOCKER_DAEMON_CONFIGURATION")]) {
+              sh("mkdir -p /etc/docker")
+              sh("cat $DOCKER_DAEMON_CONFIGURATION > /etc/docker/daemon.json")
+            }
+            withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
+              sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
+            }
+
             // Fetch latest Kernel version for OS/flavor
             env.LATEST_KERNEL_VERSION = sh(script: """
               docker run --rm $OS:$OS_VERSION bash -c "
@@ -48,14 +57,6 @@ pipeline {
                 apt-cache search --names-only linux-image | grep -Eo 'linux-image-[0-9.-]+$FLAVOR' | sed -E 's/linux-image-//g' | sort -V | tail -n 1
               "
             """, returnStdout: true).trim()  // example: 6.8.0-46-generic
-
-            // Docker logins
-            withCredentials([usernamePassword(credentialsId: "dockerhub-access-token", usernameVariable: "DOCKERHUB_USERNAME", passwordVariable: "DOCKERHUB_TOKEN")]) {
-              sh('echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin')  // TODO: substitute with a service account
-            }
-            withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
-              sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
-            }
 
             // Check if precompiled DOCA for kernel version already exists
             env.PRECOMPILED_VERSION_EXISTS = sh(script: """
