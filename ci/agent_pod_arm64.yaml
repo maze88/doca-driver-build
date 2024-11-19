@@ -48,6 +48,8 @@ spec:
     volumeMounts:
     - mountPath: /root/.docker
       name: docker-config
+    - mountPath: /etc/docker
+      name: docker-daemon-config
     env:
     - name: DOCKER_HOST
       value: tcp://localhost:2375
@@ -69,7 +71,11 @@ spec:
     volumeMounts:
     - mountPath: /kaniko/.docker
       name: docker-config
+    - mountPath: /etc/docker
+      name: docker-daemon-config
 
   volumes:
   - name: docker-config
+    emptyDir: {}
+  - name: docker-daemon-config
     emptyDir: {}
