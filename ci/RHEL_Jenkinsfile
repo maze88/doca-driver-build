@@ -97,6 +97,7 @@ pipeline {
                     majorVersion=RH_MAJOR_VERSION_TO_USE_FOR_LATEST_KERNEL_LOOKUPS
                   }
                   env.LATEST_KERNEL_VERSION = sh(script: "docker run --rm redhat/ubi$majorVersion:latest yum repoquery | grep kernel-headers | cut -d ':' -f 2", returnStdout: true).trim()
+                  echo("$LATEST_DOCA_VERSION")
 
                   // Docker login
                   withCredentials([usernamePassword(credentialsId: "redhat-username-and-password", usernameVariable: "RH_USERNAME", passwordVariable: "RH_PASSWORD")]) {
