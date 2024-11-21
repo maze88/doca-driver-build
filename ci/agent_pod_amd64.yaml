@@ -50,6 +50,12 @@ spec:
       name: docker-config
     - mountPath: /etc/docker
       name: docker-daemon-config
+    - mountPath: /mswg
+      name: mswg
+      mountPropagation: HostToContainer
+    - mountPath: /auto
+      name: auto
+      mountPropagation: HostToContainer
     env:
     - name: DOCKER_HOST
       value: tcp://localhost:2375
@@ -79,3 +85,12 @@ spec:
     emptyDir: {}
   - name: docker-daemon-config
     emptyDir: {}
+  - name: mswg
+    hostPath:
+      path: /mswg
+      type: Directory
+      readOnly: true
+  - name: auto
+    hostPath:
+      path: /auto
+      type: Directory
