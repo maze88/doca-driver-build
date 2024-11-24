@@ -18,7 +18,6 @@ pipeline {
 
   environment {
     NVCR_DOCKER_REGISTRY = "nvcr.io/nvstaging/mellanox"
-    DOCKER_IMAGE_NAME = "doca-driver"
   }
 
   stages {
