@@ -50,13 +50,13 @@ pipeline {
               sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
             }
 
-            // Fetch latest Kernel version for OS/flavor
-            env.LATEST_KERNEL_VERSION = sh(script: """
+            // Lookup Kernel version for OS/flavor
+            env.KERNEL_VERSION = sh(script: """
               docker run --rm $OS:$OS_VERSION bash -c "
                 apt-get update > /dev/null
-                apt-cache search --names-only linux-image | grep -Eo 'linux-image-[0-9.-]+$FLAVOR' | sed -E 's/linux-image-//g' | sort -V | tail -n 1
+                apt-cache search --names-only linux-image | grep -Eo 'linux-image-[0-9.-]+$FLAVOR' | sed -E 's/linux-image-//g' | sort -V | ${FLAVOR == 'generic' ? 'head' : 'tail'} -n 1
               "
-            """, returnStdout: true).trim()  // example: 6.8.0-46-generic
+            """, returnStdout: true).trim()  // example: 6.8.0-31-generic
 
             // Check if precompiled DOCA for kernel version already exists
             env.PRECOMPILED_VERSION_EXISTS = sh(script: """
@@ -68,7 +68,7 @@ pipeline {
             // Set Docker manifest and build values
             env.DOCKERFILE             = "${OS.capitalize()}_Dockerfile"
             env.BUILD_EXTRA_ARGS       = "${OS == 'ubuntu' ? '--without-mlnx-nvme-modules' : ''}"
-            env.DOCKER_TAG             = "$LATEST_DOCA_VERSION-$LATEST_KERNEL_VERSION-$OS$OS_VERSION"  // example: 24.07-0.6.1.0-6.8.0-46-generic-ubuntu24.04
+            env.DOCKER_TAG             = "$LATEST_DOCA_VERSION-$KERNEL_VERSION-$OS$OS_VERSION"  // example: 24.07-0.6.1.0-6.8.0-46-generic-ubuntu24.04
             env.DOCKER_MANIFEST_NAME   = "$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME:$DOCKER_TAG-mztest6"  // TODO: remove '-mztest' suffix after development
             env.DOCKER_FULL_IMAGE_NAME = "$DOCKER_MANIFEST_NAME${ARCHITECTURE == '' ? '' : '-'}$ARCHITECTURE"
           }
@@ -88,7 +88,7 @@ pipeline {
               --dockerfile=$DOCKERFILE \
               --build-arg D_OS=$OS$OS_VERSION \
               --build-arg D_BASE_IMAGE=$OS:$OS_VERSION \
-              --build-arg D_KERNEL_VER=$LATEST_KERNEL_VERSION \
+              --build-arg D_KERNEL_VER=$KERNEL_VERSION \
               --build-arg D_OFED_VERSION=$LATEST_DOCA_VERSION \
               --build-arg D_BUILD_EXTRA_ARGS=$BUILD_EXTRA_ARGS \
               --destination=$DOCKER_FULL_IMAGE_NAME \
