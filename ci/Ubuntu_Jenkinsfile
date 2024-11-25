@@ -12,7 +12,7 @@ pipeline {
 
   // TODO: talat said in january upstream job will change (check with him or daniel levi towards then)
   parameters {
-    string(name: "LATEST_DOCA_VERSION", defaultValue: "24.10-1.0.1.0", description: "The version of the DOCA sources to use")  // TODO: remove default value 24.07-0.6.1.0 after development
+    string(name: "LATEST_DOCA_VERSION", defaultValue: "24.10-0.7.0.0", description: "The version of the DOCA sources to use")  // TODO: remove default value 24.07-0.6.1.0 after development
     booleanParam(name: "PUSH_IMAGES",   defaultValue: true,            description: "For dry-runs, disable pushing images to registry")
   }
 

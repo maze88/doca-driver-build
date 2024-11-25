@@ -1,8 +1,7 @@
-// ON HOLD: due for 2025-01
 pipeline {
   agent {
     kubernetes {
-      yamlFile "ci/agent_pod.yaml"
+      yamlFile "ci/agent_pod_upstream.yaml"
     }
   }
 
@@ -11,32 +10,33 @@ pipeline {
     ansiColor("xterm")
   }
 
+  // TODO: talat said in january upstream job will change (check with him or daniel levi towards then)
   parameters {
-    string(name: "LATEST_DOCA_VERSION", defaultValue: "24.07-0.6.1.0", description: "The version of the DOCA sources to use")
+    string(name: "LATEST_DOCA_VERSION", defaultValue: "24.10-0.7.0.0", description: "The version of the DOCA sources to use")  // TODO: remove default value 24.07-0.6.1.0 after development
+    booleanParam(name: "PUSH_IMAGES",   defaultValue: false,            description: "For dry-runs, disable pushing images to registry")  // TODO: after development change default to `true`
   }
 
   environment {
-    // NVCR_USERNAME = "\$oauthtoken"
     NVCR_DOCKER_REGISTRY = "nvcr.io/nvstaging/mellanox"
-    DOCKER_IMAGE_NAME = "doca-driver"
   }
 
   stages {
     stage("Init") {
       steps {
-        container("dind") {
-          sh("sudo apk add jq skopeo")
-          sh("until nc -vz localhost 2375; do sleep 3; done")
+        script {
+          manifestsToCreate = [:]
         }
       }
     }
 
-    stage("Precompile build matrices") {
+    stage("Precompile Matrix") {
+      failFast false
       matrix {
+
         axes {
           axis {
             name "ARCHITECTURE"
-            values "linux/amd64", "linux/arm64"
+            values "amd64", "arm64"
           }
           axis {
             name "OS_VERSION"
@@ -75,82 +75,62 @@ pipeline {
             }
             axis {
               name "ARCHITECTURE"
-              values "linux/arm64"
+              values "arm64"
             }
           }
         }
-        environment {
-          OS = "$OS"  // workaround to access matrix values in `script{}` scope
-          RH_MAJOR_VERSION_TO_USE_FOR_LATEST_KERNEL_LOOKUPS = "9"
-          RH_DOCKER_REGISTRY = "registry.redhat.io"
-        }
+
         stages {
-
-          stage("Init") {
+          stage("Trigger downstream job") {
             steps {
-              container("dind") {
-                script {
-                  // Fetch latest Kernel version
-                  if (OS == "rhel") {
-                    majorVersion=OS_VERSION.tokenize(".")[0]
-                  } else if (OS == "rhcos") {
-                    majorVersion=RH_MAJOR_VERSION_TO_USE_FOR_LATEST_KERNEL_LOOKUPS
-                  }
-                  env.LATEST_KERNEL_VERSION = sh(script: "docker run --rm redhat/ubi$majorVersion:latest yum repoquery | grep kernel-headers | cut -d ':' -f 2", returnStdout: true).trim()
-                  echo("$LATEST_DOCA_VERSION")
-
-                  // Docker login
-                  withCredentials([usernamePassword(credentialsId: "redhat-username-and-password", usernameVariable: "RH_USERNAME", passwordVariable: "RH_PASSWORD")]) {
-                    sh("echo '$RH_PASSWORD' | docker login -u '$RH_USERNAME' --password-stdin $RH_DOCKER_REGISTRY")  // required during build
-                  }
-                  withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
-                    sh("echo '$NVCR_TOKEN' | docker login -u '$NVCR_USERNAME' --password-stdin $NVCR_DOCKER_REGISTRY")
-                  }
-
-                  // Check if precompiled DOCA for kernel version already exists
-                  ARCH = ARCHITECTURE.tokenize("/")[1]
-                  env.PRECOMPILED_VERSION_EXISTS = sh(script: """
-                    skopeo list-tags docker://$NVCR_DOCKER_REGISTRY/$DOCKER_IMAGE_NAME | jq '.Tags[]' -r | \
-                      grep $LATEST_DOCA_VERSION | \
-                      grep $OS$OS_VERSION-$ARCH
-                  """, returnStatus: true)
-
-                  // Determine Docker tag
-                  env.DOCKER_TAG = "$params.LATEST_DOCA_VERSION-$LATEST_KERNEL_VERSION-$OS$OS_VERSION"  // example: 24.07-0.6.1.0-5.14.0-427.37.1.el9_4.x86_64-rhel9.4
+              script {
+                buildResult = build(
+                  job: "precompiled-DOCA-build-downstream",
+                  parameters: [
+                    string(name: "LATEST_DOCA_VERSION", value: "$LATEST_DOCA_VERSION"),
+                    string(name: "FLAVOR",              value: "$FLAVOR"),
+                    string(name: "OS",                  value: "ubuntu"),
+                    string(name: "OS_VERSION",          value: "$OS_VERSION"),
+                    string(name: "ARCHITECTURE",        value: "$ARCHITECTURE"),
+                    booleanParam(name: "PUSH_IMAGE",    value: params.PUSH_IMAGES),
+                  ],
+                  wait: true,
+                )
+                manifestName  = buildResult.buildVariables.DOCKER_MANIFEST_NAME
+                fullImageName = buildResult.buildVariables.DOCKER_FULL_IMAGE_NAME
+                if (manifestsToCreate[manifestName]) {
+                  manifestsToCreate[manifestName] += fullImageName
+                } else {
+                  manifestsToCreate[manifestName] = [fullImageName]
                 }
+                manifestsToCreatePseudoMap = manifestsToCreate.collect { key, value -> "${key}=${value.join(' ')}" }.join(';')  // map converted because jenkins can only pass strings between stages
               }
             }
           }
+        }
 
-          stage("Build and push") {
-            when {
-              expression { env.PRECOMPILED_VERSION_EXISTS != 0 }
-            }
-            steps {
-              container("kaniko") {
-                sh("""
-                  /kaniko/executor version
-                """)
-              }
+      }
+    }
+
+    stage("Create manifests") {
+      when {
+        expression { manifestsToCreate && PUSH_IMAGES == "true" }
+      }
+      steps {
+        container("dind") {
+          withCredentials([usernamePassword(credentialsId: "nvcr-username-and-token", usernameVariable: "NVCR_USERNAME", passwordVariable: "NVCR_TOKEN")]) {
+            sh('echo "$NVCR_TOKEN" | docker login -u "$NVCR_USERNAME" --password-stdin $NVCR_DOCKER_REGISTRY')
+          }
+          script {
+            echo(manifestsToCreatePseudoMap)  // debug
+            manifestsToCreatePseudoMap.tokenize(";").each { manifest ->
+              (manifestName, fullImageNames) = manifest.tokenize("=")
+              sh("docker manifest create $manifestName $fullImageNames")
+              sh("docker manifest push   $manifestName")
             }
           }
-
-          stage("Manifest creation") {
-            when {
-              expression { env.PRECOMPILED_VERSION_EXISTS != 0 }
-            }
-            steps {
-              container("dind") {
-                sh("""
-                  docker --version
-                """)
-              }
-            }
-          }
-
         }
       }
     }
   }
 }
-
